@@ -3,177 +3,370 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Полит-РП: Мировая Экспансия</title>
+    <title>Полит-РП: Сетевой Симулятор</title>
+    <!-- Картографический движок Leaflet -->
+    <link rel="stylesheet" href="https://cloudflare.com" />
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #0b111e; color: #fff; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #060913; color: #fff; user-select: none; }
         #gameCanvas { width: 100vw; height: 100vh; display: block; cursor: crosshair; }
+        .leaflet-tile-container { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+
+        /* Игровой HUD жизни и экономики */
         #hud {
             position: absolute; top: 20px; left: 20px;
-            background: rgba(15, 23, 42, 0.95); padding: 18px;
-            border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.7);
+            background: rgba(10, 16, 32, 0.95); padding: 18px;
+            border-radius: 12px; box-shadow: 0 4px 30px rgba(0,0,0,0.8);
             z-index: 1000; border: 2px solid #38bdf8; min-width: 240px;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(10px);
         }
-        #hud h2 { margin: 0 0 10px 0; color: #38bdf8; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
-        .stat { font-size: 14px; margin: 6px 0; font-family: monospace; }
+        #hud h2 { margin: 0 0 10px 0; color: #38bdf8; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        .stat { font-size: 13px; margin: 6px 0; font-family: monospace; }
+        
+        /* Панель подключения к мультиплееру */
+        #mp-panel {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95); padding: 12px 20px; border-radius: 12px;
+            z-index: 1000; border: 2px solid #a855f7; display: flex; gap: 10px; align-items: center;
+        }
+        .mp-input { background: #0f172a; border: 1px solid #475569; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+        .mp-btn { background: #a855f7; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; }
+
+        /* Онлайн Чат Игроков */
         #people-chat {
             position: absolute; top: 20px; right: 20px;
-            background: rgba(30, 41, 59, 0.95); padding: 15px; border-radius: 12px;
+            background: rgba(15, 23, 42, 0.95); padding: 15px; border-radius: 12px;
             z-index: 1000; border: 1px solid #eab308; width: 280px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
-        #chat-content { max-height: 120px; overflow-y: auto; font-size: 12px; color: #cbd5e1; font-family: monospace; margin-top: 8px; }
-        .msg { margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        #chat-content { max-height: 120px; overflow-y: auto; font-size: 12px; color: #cbd5e1; font-family: monospace; margin-top: 6px; }
+        .msg { margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        /* Пульт управления зданиями */
         #control-panel {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            background: #1e293b; border: 2px solid #475569; padding: 20px; border-radius: 16px;
-            z-index: 1000; width: 340px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-            display: none; box-sizing: border-box;
+            background: #0f172a; border: 2px solid #334155; padding: 20px; border-radius: 16px;
+            z-index: 1000; width: 340px; box-shadow: 0 10px 40px rgba(0,0,0,0.9); display: none;
         }
-        #control-panel h3 { margin: 0 0 8px 0; font-size: 18px; color: #fff; }
+        #control-panel h3 { margin: 0 0 8px 0; font-size: 17px; color: #fff; }
         #control-panel p { margin: 4px 0; font-size: 13px; color: #94a3b8; }
-        .tax-container { margin: 12px 0; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid #475569; }
+        
+        .tax-container { margin: 12px 0; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid #334155; }
         .tax-slider { width: 100%; margin-top: 5px; cursor: pointer; }
-        .btn { width: 100%; padding: 10px; margin-top: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
-        .btn-buy { background: #38bdf8; color: #0f172a; }
-        .btn-buy:hover { background: #0ea5e9; }
-        .btn-sell { background: #ef4444; color: #fff; }
-        .btn-close { background: #475569; color: #fff; margin-top: 6px; }
-        #hint { position: absolute; top: 190px; left: 20px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; font-size: 12px; z-index: 1000; color: #cbd5e1; border: 1px solid #334155; }
+        
+        .btn { width: 100%; padding: 10px; margin-top: 8px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .btn-action { background: #38bdf8; color: #0f172a; }
+        .btn-close { background: #475569; color: #fff; }
+
+        #hint {
+            position: absolute; bottom: 30px; left: 20px;
+            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px;
+            font-size: 11px; z-index: 1000; color: #94a3b8; border: 1px solid #1e293b;
+        }
     </style>
 </head>
 <body>
+    <!-- ИГРОВОЙ HUD -->
     <div id="hud">
-        <h2>Полит-Штаб Империи</h2>
-        <div class="stat">💰 Бюджет: <span id="balance">3 000 000</span> ₽</div>
-        <div class="stat">🗺️ Под контролем: <span id="count">0</span> рег.</div>
-        <div class="stat">📈 Сбор налога: +<span id="income">0</span> ₽/мин</div>
-        <div class="stat">✊ Лояльность мира: <span id="loyalty" style="color:#10b981; font-weight:bold;">100%</span></div>
+        <h2 id="player-rank">👶 Обычный Гражданин</h2>
+        <div class="stat">💵 Баланс: <span id="balance">5 000</span> ₽</div>
+        <div class="stat">💼 Место работы: <span id="job-title" style="color:#eab308;">Безработный</span></div>
+        <div class="stat">🔫 Оружие: <span id="weapon-status" style="color:#94a3b8;">Кулаки</span></div>
+        <div class="stat">✊ Налог государству: <span id="tax-paid" style="color:#ef4444;">13%</span></div>
     </div>
-    <div id="hint">🌍 Нажимайте на подсвеченные кварталы мегаполиса для захвата</div>
+
+    <!-- ПАНЕЛЬ МУЛЬТИПЛЕЕРА -->
+    <div id="mp-panel">
+        <input type="text" id="nickname-input" class="mp-input" placeholder="Ваш никнейм" style="width: 100px;">
+        <button class="mp-btn" onclick="hostRoom()">Создать комнату</button>
+        <span style="font-size:12px; color:#94a3b8;">или</span>
+        <input type="text" id="room-id-input" class="mp-input" placeholder="ID комнаты" style="width: 120px;">
+        <button class="mp-btn" style="background:#10b981;" onclick="joinRoom()">Войти</button>
+    </div>
+
+    <!-- СЕТЕВОЙ ЧАТ -->
     <div id="people-chat">
-        <b style="color: #eab308; font-size: 14px;">💬 Социальная сеть жителей</b>
-        <div id="chat-content"><div class="msg" style="color:#94a3b8;">[Система] Окружающая местность успешно прогружена!</div></div>
-    </div>
-    <div id="control-panel">
-        <h3 id="b-title">Новый регион</h3>
-        <p>📊 Тип объекта: <span id="b-type">-</span></p>
-        <p>💰 Цена покупки: <span id="b-price" style="color:#38bdf8; font-weight:bold;">-</span></p>
-        <div class="tax-container">
-            <span style="font-size: 12px; color: #cbd5e1;">Ставка налога: <b id="tax-value" style="color:#38bdf8;">13%</b></span>
-            <input type="range" min="1" max="90" value="13" class="tax-slider" id="taxRange" oninput="updateTaxLabel(this.value)">
-            <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;" id="people-reaction">Мнение жителей: Нейтральное</div>
+        <b style="color: #eab308; font-size: 13px;">🌐 Сетевой Чат Лобби</b>
+        <div id="chat-content">
+            <div class="msg" style="color:#38bdf8;">[Система] Введите никнейм и создайте комнату, чтобы пригласить друга!</div>
         </div>
-        <p>📈 Итоговый налог: +<span id="b-income">-</span> ₽/мин</p>
-        <button id="action-btn" class="btn btn-buy">Установить контроль</button>
-        <button class="btn btn-close" onclick="closePanel()">Отмена</button>
     </div>
+
+    <div id="hint">🧭 Управление: Кликом мыши отправляйте синий шарик вперед. Подбегайте к зданиям для работы или покупки АК-47. Зажмите правую кнопку мыши и потяните, чтобы выделить регион под захват своей страны! Колесико — зум.</div>
+
+    <!-- Физический холст игры -->
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Подключаем внешние сетевые библиотеки (P2P протокол) -->
+    <script src="https://cloudflare.com"></script>
+    <script src="https://cloudflare.com"></script>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        let gameState = { balance: 3000000, owned: {}, totalIncome: 0, loyalty: 100 };
-        let sectors = []; let currentSector = null;
-        const geoCities = ["Парижский Сектор", "Токийский Дистрикт", "Нью-Йорк Центр", "Московский Округ", "Сидней Форпост"];
-        const currentCityName = geoCities[Math.floor(Math.random() * geoCities.length)];
 
-        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; generateGeoMap(); }
-        function generateGeoMap() {
-            sectors = []; const types = ["Сырьевой узел", "Стратегический мегаполис", "Аграрный аванпост", "Военно-морская база"]; let id = 1;
-            for (let x = 240; x < canvas.width - 320; x += 190) {
-                for (let y = 100; y < canvas.height - 120; y += 140) {
-                    let w = 120 + Math.floor(Math.random() * 30); let h = 80 + Math.floor(Math.random() * 20);
-                    let type = types[Math.floor(Math.random() * types.length)]; let seed = Math.abs(Math.sin(x) * Math.cos(y));
-                    let price = Math.round((seed * 800000) + 350000 * (type.includes("мегаполис") ? 2.4 : 1.3));
-                    sectors.push({ id, x, y, w, h, type, price, basePrice: price, owned: false, tax: 13, income: 0 }); id++;
-                }
-            }
-            drawMap();
+        let myName = "Игрок";
+        let player = { x: 400, y: 300, targetX: 400, targetY: 300, speed: 4, money: 5000, job: null, weapon: "Кулаки", hasGun: false, rank: "Гражданин", taxRate: 13 };
+        
+        let sectors = []; let currentSector = null;
+        let zoom = 14; let viewX = 0; let viewY = 0;
+        let isSelecting = false; let startSelX = 0; let startSelY = 0; let endSelX = 0; let endSelY = 0;
+
+        // Сетевые переменные мультиплеера
+        let peer = null; let conn = null; let isHost = false;
+        let remotePlayers = {}; // Список других живых игроков в комнате
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            generateWorldMap();
         }
 
-        function drawMap() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = "#0b111e"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = "rgba(56, 189, 248, 0.04)"; ctx.lineWidth = 1;
-            for(let i=0; i<canvas.width; i+=40) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
-            for(let i=0; i<canvas.height; i+=40) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
-            ctx.fillStyle = "#1e293b";
-            sectors.forEach(s => { ctx.fillRect(s.x - 25, 0, 12, canvas.height); ctx.fillRect(0, s.y - 25, canvas.width, 12); });
-            sectors.forEach(s => {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(s.x + 8, s.y + 8, s.w, s.h);
-                if (s.owned) {
-                    ctx.fillStyle = s.tax <= 20 ? "rgba(16, 185, 129, 0.2)" : s.tax <= 50 ? "rgba(234, 179, 8, 0.2)" : "rgba(239, 68, 68, 0.2)";
-                    ctx.strokeStyle = s.tax <= 20 ? "#10b981" : s.tax <= 50 ? "#eab308" : "#ef4444";
-                } else { ctx.fillStyle = "rgba(56, 189, 248, 0.06)"; ctx.strokeStyle = "#38bdf8"; }
-                ctx.lineWidth = 2; ctx.fillRect(s.x, s.y, s.w, s.h); ctx.strokeRect(s.x, s.y, s.w, s.h);
-                ctx.fillStyle = s.owned ? "rgba(255,255,255,0.3)" : "rgba(56, 189, 248, 0.15)";
-                for (let ox = s.x + 12; ox < s.x + s.w - 10; ox += 18) { for (let oy = s.y + 12; oy < s.y + s.h - 10; oy += 18) { ctx.fillRect(ox, oy, 5, 5); } }
-                ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.font = "9px monospace"; ctx.fillText(s.type, s.x + 8, s.y + 20);
+        function generateWorldMap() {
+            sectors = [];
+            const types = [
+                { name: "Имперский Завод", icon: "🏭", workPay: 1200, cost: 450000 },
+                { name: "Оружейный Арсенал", icon: "🔫", workPay: 0, cost: 600000 },
+                { name: "Бизнес-Центр", icon: "🏬", workPay: 2500, cost: 800000 },
+                { name: "Городской Парк", icon: "🌳", workPay: 400, cost: 150000 },
+                { name: "Жилой Квартал", icon: "🏢", workPay: 800, cost: 300000 }
+            ];
+            let id = 1;
+            for (let x = 100; x < 2000; x += 240) {
+                for (let y = 80; y < 1500; y += 180) {
+                    let type = types[Math.floor(Math.abs(Math.sin(x) * Math.cos(y)) * types.length)];
+                    sectors.push({ id, x, y, w: 160, h: 110, name: type.name, icon: type.icon, workPay: type.workPay, price: type.cost, ownedBy: "Государство", tax: 13 });
+                    id++;
+                }
+            }
+        }
+
+        // Сетевая синхронизация: функция СОЗДАНИЯ КОМНАТЫ (Хост)
+        function hostRoom() {
+            setupNickname();
+            peer = new Peer();
+            peer.on('open', (id) => {
+                isHost = true;
+                document.getElementById('mp-panel').innerHTML = `<b style="color:#a855f7;">ID вашей комнаты:</b> <input type="text" class="mp-input" value="${id}" readonly style="width:180px; text-align:center;" onclick="this.select()">`;
+                addLogMessage("Сеть", `Комната создана! Отправьте этот ID другу для подключения.`, "#a855f7");
+            });
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnectionListeners();
             });
         }
 
-        function updateTaxLabel(val) {
-            document.getElementById('tax-value').innerText = val + "%"; if (!currentSector) return;
-            let dynamicIncome = Math.round((currentSector.basePrice * 0.0005) * val);
-            document.getElementById('b-income').innerText = dynamicIncome.toLocaleString();
-            let reaction = document.getElementById('people-reaction');
-            if (val <= 15) { reaction.innerText = "😊 Налог низкий! Лояльность растет."; reaction.style.color = "#10b981"; }
-            else if (val <= 35) { reaction.innerText = "😐 Нормально, платить готовы."; reaction.style.color = "#eab308"; }
-            else if (val <= 60) { reaction.innerText = "😡 Это грабеж! Будут протесты."; reaction.style.color = "#f97316"; }
-            else { reaction.innerText = "🔥 МИТИНГ И БУНТ! Жители не будут платить!"; reaction.style.color = "#ef4444"; }
+        // Сетевая синхронизация: функция ВХОДА В КОМНАТУ (Клиент)
+        function joinRoom() {
+            setupNickname();
+            let roomId = document.getElementById('room-id-input').value.trim();
+            if (!roomId) { alert("Введите ID комнаты друга!"); return; }
+            
+            peer = new Peer();
+            peer.on('open', () => {
+                conn = peer.connect(roomId);
+                setupConnectionListeners();
+                document.getElementById('mp-panel').innerHTML = `<b style="color:#10b981;">Статус:</b> Подключено к серверу друга!`;
+            });
         }
 
-        canvas.addEventListener('click', (e) => {
-            let clicked = sectors.find(s => e.clientX >= s.x && e.clientX <= s.x + s.w && e.clientY >= s.y && e.clientY <= s.y + s.h);
-            if (clicked) {
-                currentSector = clicked; document.getElementById('b-title').innerText = currentCityName + ": Сектор #" + clicked.id;
-                document.getElementById('b-type').innerText = clicked.type; document.getElementById('b-price').innerText = clicked.price.toLocaleString() + " ₽";
-                document.getElementById('taxRange').value = clicked.tax; updateTaxLabel(clicked.tax);
-                let btn = document.getElementById('action-btn');
-                if (!clicked.owned) { btn.innerText = "Захватить сектор"; btn.className = "btn btn-buy"; btn.onclick = buyRegion; }
-                else { btn.innerText = "Оставить регион (-20%)"; btn.className = "btn btn-sell"; btn.onclick = sellRegion; }
-                document.getElementById('control-panel').style.display = 'block';
-            } else { closePanel(); }
+        function setupNickname() {
+            let input = document.getElementById('nickname-input').value.trim();
+            if (input) myName = input;
+        }
+
+        // Слушатель сетевых пакетов данных
+        function setupConnectionListeners() {
+            conn.on('open', () => {
+                addLogMessage("Сеть", "Соединение с другом успешно установлено! Теперь вы на одной карте.", "#10b981");
+                sendNetworkData(); // Отправляем свои стартовые координаты
+            });
+            conn.on('data', (data) => {
+                if (data.type === "move") {
+                    // Браузер друга передает его координаты и никнейм — обновляем его на экране
+                    remotePlayers[data.name] = { x: data.x, y: data.y, rank: data.rank, hasGun: data.hasGun };
+                    draw();
+                }
+                if (data.type === "msg") {
+                    addLogMessage(data.name, data.text, "#38bdf8");
+                }
+            });
+        }
+
+        // Отправка своих координат другу по сети P2P
+        function sendNetworkData() {
+            if (conn && conn.open) {
+                conn.send({ type: "move", name: myName, x: player.x, y: player.y, rank: player.rank, hasGun: player.hasGun });
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width/2, canvas.height/2);
+            ctx.scale(zoom / 14, zoom / 14);
+            ctx.translate(-viewX, -viewY);
+
+            if (zoom < 5) {
+                // Масштаб Земли (Отдаление)
+                ctx.fillStyle = "#111827"; ctx.fillRect(-2000, -2000, 6000, 6000);
+                ctx.fillStyle = "rgba(16, 185, 129, 0.15)"; ctx.fillRect(-500, -300, 1200, 800); ctx.fillRect(800, 200, 1000, 700);
+                ctx.fillStyle = "#fff"; ctx.font = "24px sans-serif"; ctx.fillText("🏳️ ЕВРАЗИЙСКИЙ СОЮЗ", 100, 100);
+            } else {
+                // Детальный масштаб (Приближение)
+                ctx.fillStyle = "#060913"; ctx.fillRect(-1000, -1000, 4000, 4000);
+                ctx.fillStyle = "#1e293b";
+                sectors.forEach(s => { ctx.fillRect(s.x - 40, -1000, 25, 4000); ctx.fillRect(-1000, s.y - 40, 4000, 25); });
+
+                sectors.forEach(s => {
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; ctx.fillRect(s.x + 10, s.y + 10, s.w, s.h);
+                    ctx.fillStyle = s.ownedBy === "Вы" ? "rgba(16, 185, 129, 0.2)" : "rgba(56, 189, 248, 0.05)";
+                    ctx.strokeStyle = s.ownedBy === "Вы" ? "#10b981" : "#38bdf8";
+                    ctx.lineWidth = 2; ctx.fillRect(s.x, s.y, s.w, s.h); ctx.strokeRect(s.x, s.y, s.w, s.h);
+                    ctx.fillStyle = "#fff"; ctx.font = "12px sans-serif"; ctx.fillText(`${s.icon} ${s.name}`, s.x + 15, s.y + 35);
+                });
+
+                // Отрисовка НАСТОЯЩИХ ДРУЗЕЙ из сети мультиплеера
+                for (let name in remotePlayers) {
+                    let p = remotePlayers[name];
+                    ctx.fillStyle = "#ef4444"; ctx.beginPath(); ctx.arc(p.x, p.y, 12, 0, Math.PI*2); ctx.fill();
+                    if (p.hasGun) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x+15, p.y+5); ctx.stroke(); }
+                    ctx.fillStyle = "#fff"; ctx.font = "10px monospace"; ctx.fillText(`👤 ${name} [${p.rank}]`, p.x - 30, p.y - 18);
+                }
+
+                // Отрисовка вашего персонажа
+                ctx.fillStyle = "#38bdf8"; ctx.beginPath(); ctx.arc(player.x, player.y, 12, 0, Math.PI*2); ctx.fill();
+                if (player.hasGun) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(player.x + 15, player.y + 5); ctx.stroke(); }
+                ctx.fillStyle = "#fff"; ctx.font = "10px bold sans-serif"; ctx.fillText(`${myName} (Вы)`, player.x - 15, player.y - 18);
+            }
+
+            if (isSelecting) {
+                ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 2; ctx.fillStyle = "rgba(239, 68, 68, 0.15)";
+                ctx.fillRect(startSelX, startSelY, endSelX - startSelX, endSelY - startSelY); ctx.strokeRect(startSelX, startSelY, endSelX - startSelX, endSelY - startSelY);
+            }
+            ctx.restore();
+        }
+
+        function updatePlayerMovement() {
+            let dx = player.targetX - player.x; let dy = player.targetY - player.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > player.speed) {
+                player.x += (dx / dist) * player.speed; player.y += (dy / dist) * player.speed;
+                viewX = player.x; viewY = player.y;
+                sendNetworkData(); // Отправляем другу информацию, что мы сдвинулись
+                draw();
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            let clickX = (e.clientX - canvas.width/2) / (zoom/14) + viewX;
+            let clickY = (e.clientY - canvas.height/2) / (zoom/14) + viewY;
+
+            if (e.button === 0) {
+                let s = sectors.find(s => clickX >= s.x && clickX <= s.x + s.w && clickY >= s.y && clickY <= s.y + s.h);
+                if (s) openBuildingPanel(s);
+                else { player.targetX = clickX; player.targetY = clickY; }
+            } else if (e.button === 2) {
+                isSelecting = true; startSelX = clickX; startSelY = clickY; endSelX = clickX; endSelY = clickY;
+            }
         });
 
-        function buyRegion() {
-            let chosenTax = parseInt(document.getElementById('taxRange').value);
-            let finalIncome = parseInt(document.getElementById('b-income').innerText.replace(/\s/g, ''));
-            if (gameState.balance < currentSector.price) { alert("Недостаточно средств госбюджета!"); return; }
-            gameState.balance -= currentSector.price; gameState.totalIncome += finalIncome;
-            currentSector.owned = true; currentSector.tax = chosenTax; currentSector.income = finalIncome;
-            addChatMessage(chosenTax, currentSector.type);
-            gameState.loyalty = chosenTax > 50 ? Math.max(0, gameState.loyalty - 15) : Math.min(100, gameState.loyalty + 5);
-            updateHUD(); drawMap(); closePanel();
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isSelecting) return;
+            endSelX = (e.clientX - canvas.width/2) / (zoom/14) + viewX; endSelY = (e.clientY - canvas.height/2) / (zoom/14) + viewY;
+            draw();
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (isSelecting) {
+                isSelecting = false;
+                let area = Math.abs((endSelX - startSelX) * (endSelY - startSelY));
+                if (area > 5000 && player.rank !== "Гражданин") {
+                    player.rank = "Президент 👑"; document.getElementById('player-rank').innerText = player.rank;
+                    if(conn) conn.send({ type: "msg", name: "Сервер", text: `📢 Игрок ${myName} объявил независимость и создал Свою Страну!` });
+                    addLogMessage("Империя", "Вы успешно аннексировали регион!", "#10b981");
+                }
+            }
+        });
+
+        function openBuildingPanel(s) {
+            currentSector = s; document.getElementById('b-title').innerText = s.name;
+            document.getElementById('b-price').innerText = s.price.toLocaleString() + " ₽";
+            let btn = document.getElementById('action-btn');
+        function openBuildingPanel(s) {
+            currentSector = s; 
+            document.getElementById('b-title').innerText = s.name;
+            document.getElementById('b-price').innerText = s.price.toLocaleString() + " ₽";
+            
+            let btn = document.getElementById('action-btn');
+            if (s.name === "Оружейный Арсенал") { 
+                btn.innerText = "Купить АК-47 (15 000 ₽)"; 
+                btn.onclick = buyWeapon; 
+            } else { 
+                // Исправлено: добавлены обратные кавычки
+                btn.innerText = `Устроиться на работу (+${s.workPay} ₽/мин)`; 
+                btn.onclick = getJob; 
+            }
+            document.getElementById('control-panel').style.display = 'block';
         }
 
-        function sellRegion() {
-            gameState.balance += Math.round(currentSector.price * 0.8); gameState.totalIncome -= currentSector.income;
-            currentSector.owned = false; currentSector.income = 0; updateHUD(); drawMap(); closePanel();
+        function getJob() {
+            player.job = currentSector.name; 
+            document.getElementById('job-title').innerText = player.job;
+            player.rank = "Бизнесмен"; 
+            document.getElementById('player-rank').innerText = player.rank;
+            closePanel(); 
+            updateHUD();
         }
 
-        function addChatMessage(tax, type) {
-            const chat = document.getElementById('chat-content'); let names = ["Иван К.", "Дмитрий_РП", "Alex_77", "Мария П.", "Егор_Империя"];
-            let rName = names[Math.floor(Math.random() * names.length)]; let msg = "";
-            if (tax <= 15) msg = "Спасибо власти за низкие налоги в секторе (" + type + ")!";
-            else if (tax <= 35) msg = "Налог " + tax + "%... Ну ладно, терпимо для (" + type + ").";
-            else if (tax <= 60) msg = "Куда уходят наши деньги?! " + tax + "% — это грабеж!";
-            else msg = "💥 ВНИМАНИЕ! Жители сектора (" + type + ") устраивают бунт против налога " + tax + "%!";
-            let div = document.createElement('div'); div.className = 'msg';
-            div.innerHTML = "<b style='color:" + (tax <= 25 ? '#10b981' : tax <= 50 ? '#eab308' : '#ef4444') + "'>" + rName + ":</b> " + msg;
+        function buyWeapon() {
+            if (player.money < 15000) { alert("Недостаточно денег!"); return; }
+            player.money -= 15000; 
+            player.weapon = "АК-47"; 
+            player.hasGun = true;
+            document.getElementById('weapon-status').innerText = "АК-47";
+            player.rank = "Милитарист ⚔️"; 
+            document.getElementById('player-rank').innerText = player.rank;
+            closePanel(); 
+            updateHUD(); 
+            sendNetworkData();
+        }
+
+        function addLogMessage(sender, text, color) {
+            const chat = document.getElementById('chat-content');
+            let div = document.createElement('div'); 
+            div.className = 'msg';
+            // Исправлено: добавлены обратные кавычки
+            div.innerHTML = `<b style="color:${color}">[${sender}]:</b> ${text}`;
             chat.insertBefore(div, chat.firstChild);
         }
 
-        function closePanel() { document.getElementById('control-panel').style.display = 'none'; currentSector = null; }
-        function updateHUD() {
-            document.getElementById('balance').innerText = gameState.balance.toLocaleString();
-            document.getElementById('count').innerText = sectors.filter(s => s.owned).length;
-            document.getElementById('income').innerText = gameState.totalIncome.toLocaleString();
-            let loy = document.getElementById('loyalty'); loy.innerText = gameState.loyalty + "%";
-            loy.style.color = gameState.loyalty > 70 ? '#10b981' : gameState.loyalty > 40 ? '#eab308' : '#ef4444';
+        window.addEventListener('wheel', (e) => { 
+            zoom = e.deltaY > 0 ? Math.max(2, zoom - 1) : Math.min(19, zoom + 1); 
+            draw(); 
+        });
+
+        function closePanel() { 
+            document.getElementById('control-panel').style.display = 'none'; 
         }
 
+        function updateHUD() { 
+            document.getElementById('balance').innerText = player.money.toLocaleString(); 
+        }
+
+        window.addEventListener('contextmenu', e => e.preventDefault());
         window.addEventListener('resize', resizeCanvas);
-        setInterval(() => { if (gameState.totalIncome > 0 && gameState.loyalty > 10) { gameState.balance += gameState.totalIncome; updateHUD(); } }, 60000);
+
+        setInterval(() => {
+            if (player.job) {
+                let s = sectors.find(s => s.name === player.job);
+                if (s) { 
+                    player.money += s.workPay; 
+                    // Исправлено: добавлены обратные кавычки
+                    addLogMessage("Зарплата", `+${s.workPay} ₽`, "#10b981"); 
+                    updateHUD(); 
+                }
+            }
+        }, 60000);
+
+        setInterval(updatePlayerMovement, 30);
         resizeCanvas();
     </script>
 </body>
