@@ -51,10 +51,15 @@
         .btn-buy:hover { background: #0ea5e9; }
         .btn-sell { background: #ef4444; color: #fff; }
         .btn-close { background: #475569; color: #fff; margin-top: 6px; }
+        
+        #hint {
+            position: absolute; top: 190px; left: 20px;
+            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px;
+            font-size: 12px; z-index: 1000; color: #cbd5e1; border: 1px solid #334155;
+        }
     </style>
 </head>
 <body>
-
     <!-- ИГРОВОЙ HUD -->
     <div id="hud">
         <h2>Полит-Штаб Империи</h2>
@@ -63,6 +68,8 @@
         <div class="stat">📈 Сбор налога: +<span id="income">0</span> ₽/мин</div>
         <div class="stat">✊ Лояльность мира: <span id="loyalty" style="color:#10b981; font-weight:bold;">100%</span></div>
     </div>
+
+    <div id="hint">🌍 Кликните на любую страну или город на карте для захвата</div>
 
     <!-- ЧАТ С ЖИТЕЛЯМИ -->
     <div id="people-chat">
@@ -78,7 +85,6 @@
         <p>📊 Тип объекта: <span id="b-type">-</span></p>
         <p>💰 Цена покупки: <span id="b-price" style="color:#38bdf8; font-weight:bold;">-</span></p>
         
-        <!-- Ползунок налога -->
         <div class="tax-container">
             <span style="font-size: 12px; color: #cbd5e1;">Ставка налога: <b id="tax-value" style="color:#38bdf8;">13%</b></span>
             <input type="range" min="1" max="90" value="13" class="tax-slider" id="taxRange" oninput="updateTaxLabel(this.value)">
@@ -90,7 +96,6 @@
         <button class="btn btn-close" onclick="closePanel()">Отмена</button>
     </div>
 
-    <!-- КАРТА МИРА -->
     <div id="map"></div>
 
     <script src="https://cloudflare.com"></script>
@@ -98,25 +103,20 @@
         let gameState = { balance: 3000000, owned: {}, totalIncome: 0, loyalty: 100 };
         let currentSector = null;
 
-        // Список стартовых GeoGeussr-точек (Токио, Париж, Нью-Йорк, Сидней, Рио, Москва)
         const geoguessrPoints = [
             [35.6762, 139.6503], [48.8566, 2.3522], [40.7128, -74.0060],
             [-33.8688, 151.2093], [-22.9068, -43.1729], [55.7558, 37.6173]
         ];
-        // Выбираем случайную точку при старте
         const randomStart = geoguessrPoints[Math.floor(Math.random() * geoguessrPoints.length)];
 
-        // Карта загружается СРАЗУ
         const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView(randomStart, 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         let markersLayer = L.layerGroup().addTo(map);
 
-        // Динамическая реакция жителей при движении ползунка налога
         function updateTaxLabel(val) {
             document.getElementById('tax-value').innerText = val + "%";
             if (!currentSector) return;
 
-            // Пересчитываем доход на ходу в зависимости от ползунка
             let baseIncome = currentSector.basePrice * 0.0005;
             let dynamicIncome = Math.round(baseIncome * val);
             document.getElementById('b-income').innerText = dynamicIncome.toLocaleString();
@@ -128,7 +128,6 @@
             else { reaction.innerText = "🔥 МИТИНГ И БУНТ! Жители откажутся платить!"; reaction.style.color = "#ef4444"; }
         }
 
-        // Клик по реальной карте
         map.on('click', function(e) {
             let lat = e.latlng.lat; let lng = e.latlng.lng;
             let id = `reg_${lat.toFixed(3)}_${lng.toFixed(3)}`;
@@ -146,7 +145,6 @@
             document.getElementById('b-type').innerText = type;
             document.getElementById('b-price').innerText = price.toLocaleString() + " ₽";
 
-            // Сбрасываем ползунок на базовые 13% при каждом новом клике
             document.getElementById('taxRange').value = 13;
             updateTaxLabel(13);
 
@@ -174,7 +172,6 @@
             gameState.balance -= data.price;
             gameState.totalIncome += finalIncome;
 
-            // Ставим маркер на карту. Цвет зависит от налога (зеленый - добрый мэр, красный - тиран)
             let color = chosenTax <= 20 ? '#10b981' : chosenTax <= 50 ? '#eab308' : '#ef4444';
 
             let marker = L.circleMarker([data.lat, data.lng], {
@@ -184,9 +181,69 @@
             marker.bindPopup(`<b>${data.type}</b><br>Налоговая ставка: ${chosenTax}%<br>Сбор: +${finalIncome} ₽/мин`);
             gameState.owned[data.id] = { price: data.price, income: finalIncome, marker: marker, tax: chosenTax };
 
-            // Добавляем комментарий жителей в чат
             addChatMessage(chosenTax, data.type);
             
-            // Влияние на общую лояльность мира
             if (chosenTax > 50) gameState.loyalty = Math.max(0, gameState.loyalty - 15);
-            else if (chosenTax < 15) gameState.loyalty = Math.min(100, gameState.loyalty + 5);updateHUD();closePanel();}function sellRegion() {let id = currentSector.id;gameState.balance += Math.round(gameState.owned[id].price * 0.8);gameState.totalIncome -= gameState.owned[id].income;markersLayer.removeLayer(gameState.owned[id].marker);delete gameState.owned[id];updateHUD();closePanel();}// Генератор живых комментариев народа в чатеfunction addChatMessage(tax, type) {const chat = document.getElementById('chat-content');let names = ["Иван К.", "Дмитрий_РП", "Alex_77", "Мария Попова", "Егор_Империя"];let randomName = names[Math.floor(Math.random() * names.length)];let message = "";if (tax <= 15) message = Спасибо власти за низкие налоги в новом секторе (${type})! Жить стало легче!;else if (tax <= 35) message = Налог ${tax}%... Ну ладно, терпимо, лишь бы дороги строили в (${type}).;else if (tax <= 60) message = Куда уходят наши деньги?! ${tax}% — это грабеж среднего класса!;else message = 💥 ВНИМАНИЕ! Жители сектора (${type}) выходят на забастовку! Налог ${tax}% незаконный!;let color = tax <= 25 ? '#10b981' : tax <= 50 ? '#eab308' : '#ef4444';let msgDiv = document.createElement('div');msgDiv.className = 'msg';msgDiv.innerHTML = <b style="color:${color}">${randomName}:</b> ${message};chat.insertBefore(msgDiv, chat.firstChild);}function closePanel() { document.getElementById('control-panel').style.display = 'none'; currentSector = null; }function updateHUD() {document.getElementById('balance').innerText = gameState.balance.toLocaleString();document.getElementById('count').innerText = Object.keys(gameState.owned).length;document.getElementById('income').innerText = gameState.totalIncome.toLocaleString();let loyEl = document.getElementById('loyalty');loyEl.innerText = gameState.loyalty + "%";if (gameState.loyalty > 70) loyEl.style.color = '#10b981';else if (gameState.loyalty > 40) loyEl.style.color = '#eab308';else loyEl.style.color = '#ef4444';}// Поминутный сбор налоговsetInterval(() => {if (gameState.totalIncome > 0) {// Если общая лояльность упала до нуля, жители устраивают забастовку и не платят налогиif (gameState.loyalty <= 10) {alert("⚠️ РЕВОЛЮЦИЯ! Лояльность народа упала до минимума. Жители устроили забастовку и временно заблокировали выплату налогов!");} else {gameState.balance += gameState.totalIncome;}updateHUD();}}, 60000);
+            else if (chosenTax < 15) gameState.loyalty = Math.min(100, gameState.loyalty + 5);
+
+            updateHUD();
+            closePanel();
+        }
+
+        function sellRegion() {
+            let id = currentSector.id;
+            gameState.balance += Math.round(gameState.owned[id].price * 0.8);
+            gameState.totalIncome -= gameState.owned[id].income;
+            markersLayer.removeLayer(gameState.owned[id].marker);
+            delete gameState.owned[id];
+            updateHUD();
+            closePanel();
+        }
+
+        function addChatMessage(tax, type) {
+            const chat = document.getElementById('chat-content');
+            let names = ["Иван К.", "Дмитрий_РП", "Alex_77", "Мария Попова", "Егор_Империя"];
+            let randomName = names[Math.floor(Math.random() * names.length)];
+            let message = "";
+
+            if (tax <= 15) message = "Спасибо власти за низкие налоги в новом секторе (" + type + ")!";
+            else if (tax <= 35) message = "Налог " + tax + "%... Ну ладно, терпимо, лишь бы дороги строилили в (" + type + ").";
+            else if (tax <= 60) message = "Куда уходят наши деньги?! " + tax + "% — это грабеж!";
+            else message = "💥 ВНИМАНИЕ! Жители сектора (" + type + ") выходят на забастовку!";
+
+            let color = tax <= 25 ? '#10b981' : tax <= 50 ? '#eab308' : '#ef4444';
+
+            let msgDiv = document.createElement('div');
+            msgDiv.className = 'msg';
+            // ЗДЕСЬ СТРОКА ИСПРАВЛЕНА: добавлены обратные кавычки
+            msgDiv.innerHTML = `<b style="color:${color}">${randomName}:</b> ${message}`;
+            chat.insertBefore(msgDiv, chat.firstChild);
+        }
+
+        function closePanel() { document.getElementById('control-panel').style.display = 'none'; currentSector = null; }
+
+        function updateHUD() {
+            document.getElementById('balance').innerText = gameState.balance.toLocaleString();
+            document.getElementById('count').innerText = Object.keys(gameState.owned).length;
+            document.getElementById('income').innerText = gameState.totalIncome.toLocaleString();
+            
+            let loyEl = document.getElementById('loyalty');
+            loyEl.innerText = gameState.loyalty + "%";
+            if (gameState.loyalty > 70) loyEl.style.color = '#10b981';
+            else if (gameState.loyalty > 40) loyEl.style.color = '#eab308';
+            else loyEl.style.color = '#ef4444';
+        }
+
+        setInterval(() => {
+            if (gameState.totalIncome > 0) {
+                if (gameState.loyalty <= 10) {
+                    console.log("⚠️ Забастовка! Жители отказались платить налоги.");
+                } else {
+                    gameState.balance += gameState.totalIncome;
+                }
+                updateHUD();
+            }
+        }, 60000);
+    </script>
+</body>
+</html>
