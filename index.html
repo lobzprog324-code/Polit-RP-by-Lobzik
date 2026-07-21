@@ -112,6 +112,9 @@
         const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView(randomStart, 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         let markersLayer = L.layerGroup().addTo(map);
+        // Принудительное раскрытие карты на весь экран
+setTimeout(() => { map.invalidateSize(); }, 500);
+
 
         function updateTaxLabel(val) {
             document.getElementById('tax-value').innerText = val + "%";
