@@ -17,8 +17,8 @@
         /* Окно выбора фракции на старте */
         #start-screen {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(11, 15, 25, 0.9); z-index: 9999; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; backdrop-filter: blur(5px);
+            background: #0b0f19; z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
         }
         .start-box {
             background: #1e293b; padding: 30px; border-radius: 16px; border: 2px solid #38bdf8;
@@ -128,12 +128,12 @@
         };
         let currentSector = null;
 
-        // КАРТА ТЕПЕРЬ ЗАПУСКАЕТСЯ СРАЗУ И ЖДЕТ НА ФОНЕ
-        const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView([20, 0], 2);
+        // Карта инициализируется сразу
+        const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView([55.7558, 37.6173], 3);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         let markersLayer = L.layerGroup().addTo(map);
 
-        // Функция старта: выбор политического режима теперь работает без сбоев
+        // Функция старта: исправлена опечатка со стилями, теперь всё кликается
         function selectFaction(name, startMoney, incMult, color) {
             gameState.faction = name;
             gameState.balance = startMoney;
@@ -145,14 +145,15 @@
             document.getElementById('stat-faction').innerText = name;
             document.getElementById('stat-faction').style.color = color;
             
-            // Включаем отображение интерфейса игры
-            document.getElementById('hud').style.style.display = 'block';
-            document.getElementById('hint').style.style.display = 'block';
+            // Включаем отображение скрытых элементов
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('hint').style.display = 'block';
             document.getElementById('start-screen').style.display = 'none';
+            
             updateHUD();
             
-            // Слегка обновляем карту, чтобы убрать возможные баги прогрузки
-            setTimeout(() => { map.invalidateSize(); }, 200);
+            // Принудительно обновляем размеры карты, чтобы не было серых зон
+            setTimeout(() => { map.invalidateSize(); }, 100);
         }
 
         map.on('click', function(e) {
