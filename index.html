@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Полит-РП: Мировая Экспансия</title>
     
-    <!-- Картографический движок Leaflet (Разрешен на GitHub) -->
+    <!-- Картографический движок Leaflet -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #0b0f19; color: #fff; }
@@ -17,17 +17,19 @@
         /* Окно выбора фракции на старте */
         #start-screen {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #0b0f19; z-index: 9999; display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
+            background: rgba(11, 15, 25, 0.9); z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; backdrop-filter: blur(5px);
         }
         .start-box {
             background: #1e293b; padding: 30px; border-radius: 16px; border: 2px solid #38bdf8;
             text-align: center; max-width: 450px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
         }
         .faction-btn {
-            width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 8px;
+            width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px;
             font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; color: #fff;
+            display: block; box-sizing: border-box;
         }
+        .faction-btn:hover { transform: scale(1.02); opacity: 0.9; }
 
         /* Игровой HUD поверх карты */
         #hud {
@@ -35,7 +37,7 @@
             background: rgba(15, 23, 42, 0.95); padding: 18px;
             border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.7);
             z-index: 1000; border: 2px solid #38bdf8; min-width: 230px;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px); display: none;
         }
         #hud h2 { margin: 0 0 10px 0; color: #38bdf8; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
         .stat { font-size: 14px; margin: 6px 0; font-family: monospace; }
@@ -63,6 +65,12 @@
         .btn-buy:hover { background: #0ea5e9; }
         .btn-sell { background: #ef4444; color: #fff; }
         .btn-close { background: #475569; color: #fff; margin-top: 6px; }
+
+        #hint {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px;
+            font-size: 12px; z-index: 1000; color: #cbd5e1; border: 1px solid #334155; display: none;
+        }
 
         @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
     </style>
@@ -107,6 +115,8 @@
         <button class="btn btn-close" onclick="closePanel()">Отмена</button>
     </div>
 
+    <div id="hint">🌍 Кликните на любую страну или город на карте для захвата</div>
+
     <!-- КАРТА МИРА -->
     <div id="map"></div>
 
@@ -118,31 +128,35 @@
         };
         let currentSector = null;
 
-        // Включаем настоящую интерактивную карту мира (Виден весь земной шар)
+        // КАРТА ТЕПЕРЬ ЗАПУСКАЕТСЯ СРАЗУ И ЖДЕТ НА ФОНЕ
         const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView([20, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         let markersLayer = L.layerGroup().addTo(map);
 
-        // Функция старта: выбор политического режима
+        // Функция старта: выбор политического режима теперь работает без сбоев
         function selectFaction(name, startMoney, incMult, color) {
             gameState.faction = name;
             gameState.balance = startMoney;
             gameState.incomeMultiplier = incMult;
             gameState.factionColor = color;
-            if (name === 'Милитаристы') gameState.discountMultiplier = 0.85; // Скидка 15%
+            if (name === 'Милитаристы') gameState.discountMultiplier = 0.85;
 
-            // Настраиваем цвета интерфейса под выбранную фракцию
             document.getElementById('hud-faction-title').style.color = color;
             document.getElementById('stat-faction').innerText = name;
             document.getElementById('stat-faction').style.color = color;
             
+            // Включаем отображение интерфейса игры
+            document.getElementById('hud').style.style.display = 'block';
+            document.getElementById('hint').style.style.display = 'block';
             document.getElementById('start-screen').style.display = 'none';
             updateHUD();
+            
+            // Слегка обновляем карту, чтобы убрать возможные баги прогрузки
+            setTimeout(() => { map.invalidateSize(); }, 200);
         }
 
-        // Алгоритм считывания клика по реальной планете
         map.on('click', function(e) {
-            if (gameState.faction === '') return; // Ждем выбора фракции
+            if (gameState.faction === '') return;
 
             let lat = e.latlng.lat;
             let lng = e.latlng.lng;
@@ -151,12 +165,9 @@
             let seed = Math.abs(Math.sin(lat) * Math.cos(lng));
             let types = ["Сырьевой промышленный узел", "Стратегический мегаполис", "Аграрный аванпост", "Военно-морская база"];
             let type = types[Math.floor(seed * types.length)];
-
             let mult = type.includes("мегаполис") ? 2.4 : type.includes("узел") ? 1.7 : 1.1;
             
-            // Рассчитываем цену с учетом бонуса милитаристов
             let price = Math.round(((seed * 1200000) + 350000 * mult) * gameState.discountMultiplier);
-            // Рассчитываем доход с учетом бонуса коммунистов
             let income = Math.round((price * 0.007) * gameState.incomeMultiplier);
 
             currentSector = { id, type, price, income, lat, lng };
@@ -179,17 +190,5 @@
                 actionBtn.className = "btn btn-sell";
                 actionBtn.onclick = sellRegion;
             }
+            document.getElementById('control-panel').style.display = 'block';});function buyRegion() {let data = currentSector;if (gameState.balance < data.price) { alert("В партийном бюджете недостаточно средств!"); return; }gameState.balance -= data.price;gameState.totalIncome += data.income;let marker = L.circleMarker([data.lat, data.lng], {radius: 12, fillColor: gameState.factionColor, color: '#fff', weight: 2, fillOpacity: 0.85}).addTo(markersLayer);marker.bindPopup(<b>${data.type}</b><br>Фракция: ${gameState.faction}<br>Сбор: +${data.income.toLocaleString()} ₽/мин);gameState.owned[data.id] = { price: data.price, income: data.income, marker: marker };updateHUD();closePanel();}function sellRegion() {let id = currentSector.id;gameState.balance += Math.round(gameState.owned[id].price * 0.8);gameState.totalIncome -= gameState.owned[id].income;markersLayer.removeLayer(gameState.owned[id].marker);delete gameState.owned[id];updateHUD();closePanel();}function closePanel() { document.getElementById('control-panel').style.display = 'none'; }function updateHUD() {document.getElementById('balance').innerText = gameState.balance.toLocaleString();document.getElementById('count').innerText = Object.keys(gameState.owned).length;document.getElementById('income').innerText = gameState.totalIncome.toLocaleString();}setInterval(() => {if (gameState.totalIncome > 0) {gameState.balance += gameState.totalIncome;updateHUD();}}, 60000);setInterval(() => {if (gameState.faction === '') return;const events = [{ title: "📈 ЭКОНОМИЧЕСКИЙ БУМ", text: "Ваша идеология набирает популярность! Сверхдержавы выделили вам грант +150 000 ₽.", action: () => { gameState.balance += 150000; } },{ title: "🚨 МЕЖДУНАРОДНЫЕ САНКЦИИ", text: "Оппозиция заблокировала счета. Из бюджета изъято -100 000 ₽ на штрафы.", action: () => { gameState.balance = Math.max(0, gameState.balance - 100000); } },{ title: "🗳️ УСПЕШНЫЕ ВЫБОРЫ", text: "Граждане поддерживают ваш режим! Разовый сбор принес +80 000 ₽.", action: () => { gameState.balance += 80000; } }];let randomEvent = events[Math.floor(Math.random() * events.length)];randomEvent.action();updateHUD();let box = document.getElementById('event-alert');document.getElementById('event-title').innerText = randomEvent.title;document.getElementById('event-text').innerText = randomEvent.text;box.style.display = 'block';setTimeout(() => { box.style.display = 'none'; }, 7000);}, 60000);
 
-            document.getElementById('control-panel').style.display = 'block';
-        });
-
-        function buyRegion() {
-            let data = currentSector;
-            if (gameState.balance < data.price) { alert("В партийном бюджете недостаточно средств!"); return; }
-
-            gameState.balance -= data.price;
-            gameState.totalIncome += data.income;
-
-            // Ставим неоновую гео-метку цвета фракции на реальную карту мира
-            let marker = L.circleMarker([data.lat, data.lng], {
-radius: 12, fillColor: gameState.factionColor, color: '#fff', weight: 2, fillOpacity: 0.85}).addTo(markersLayer);marker.bindPopup(<b>${data.type}</b><br>Фракция: ${gameState.faction}<br>Сбор: +${data.income.toLocaleString()} ₽/мин);gameState.owned[data.id] = { price: data.price, income: data.income, marker: marker };updateHUD();closePanel();}function sellRegion() {let id = currentSector.id;gameState.balance += Math.round(gameState.owned[id].price * 0.8);gameState.totalIncome -= gameState.owned[id].income;markersLayer.removeLayer(gameState.owned[id].marker);delete gameState.owned[id];updateHUD();closePanel();}function closePanel() { document.getElementById('control-panel').style.display = 'none'; }function updateHUD() {document.getElementById('balance').innerText = gameState.balance.toLocaleString();document.getElementById('count').innerText = Object.keys(gameState.owned).length;document.getElementById('income').innerText = gameState.totalIncome.toLocaleString();}// Поминутный сбор партийных налогов со всей планетыsetInterval(() => {if (gameState.totalIncome > 0) {gameState.balance += gameState.totalIncome;updateHUD();}}, 60000);// АЛГОРИТМ СЛУЧАЙНЫХ ГЕОПОЛИТИЧЕСКИХ КРИЗИСОВ (Каждую минуту)setInterval(() => {if (gameState.faction === '') return;const events = [{ title: "📈 ЭКОНОМИЧЕСКИЙ БУМ", text: "Ваша идеология набирает популярность! Сверхдержавы выделили вам грант +150 000 ₽.", action: () => { gameState.balance += 150000; } },{ title: "🚨 МЕЖДУНАРОДНЫЕ САНКЦИИ", text: "Оппозиция заблокировала счета. Из бюджета изъято -100 000 ₽ на штрафы.", action: () => { gameState.balance = Math.max(0, gameState.balance - 100000); } },{ title: "🗳️ УСПЕШНЫЕ ВЫБОРЫ", text: "Граждане поддерживают ваш режим! Разовый сбор принес +80 000 ₽.", action: () => { gameState.balance += 80000; } }];let randomEvent = events[Math.floor(Math.random() * events.length)];randomEvent.action();updateHUD();// Включаем плашку уведомленияlet box = document.getElementById('event-alert');document.getElementById('event-title').innerText = randomEvent.title;document.getElementById('event-text').innerText = randomEvent.text;box.style.display = 'block';// Выключаем плашку через 7 секундsetTimeout(() => { box.style.display = 'none'; }, 7000);}, 60000);
