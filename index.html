@@ -110,7 +110,17 @@
         const randomStart = geoguessrPoints[Math.floor(Math.random() * geoguessrPoints.length)];
 
         const map = L.map('map', { zoomControl: false, minZoom: 2 }).setView(randomStart, 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                // Подключаем защищенный шифрованием сервер карт
+        L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Автоматический триггер: раскрывает карту, как только страница открылась
+        window.addEventListener('load', () => {
+            setTimeout(() => { map.invalidateSize(); }, 300);
+        });
+
         let markersLayer = L.layerGroup().addTo(map);
         // Принудительное раскрытие карты на весь экран
 setTimeout(() => { map.invalidateSize(); }, 500);
